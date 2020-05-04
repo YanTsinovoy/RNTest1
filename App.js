@@ -6,108 +6,171 @@
  * @flow strict-local
  */
 
-import React from 'react';
-import {
-  SafeAreaView,
-  StyleSheet,
-  ScrollView,
-  View,
-  Text,
-  StatusBar,
-} from 'react-native';
+import React, {useState} from 'react';
+import {SafeAreaView, StyleSheet, Text, TextInput, View} from 'react-native';
+import {Router, Scene, Stack, Actions} from 'react-native-router-flux';
+import axios from 'axios';
+import {Button} from 'react-native-elements';
 
-import {
-  Header,
-  LearnMoreLinks,
-  Colors,
-  DebugInstructions,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const apiKey = 'GMJKpYp91Fd2zj1VSpDVgSrb826Wj1U7lHurycCd';
 
-const App: () => React$Node = () => {
+const getAsteroidIdInfo = async (id) => {
+  const res = await axios.get(
+    `https://api.nasa.gov/neo/rest/v1/neo/${id}?api_key=${apiKey}`,
+    // 'https://api.nasa.gov/neo/rest/v1/neo/3542519?api_key=DEMO_KEY',
+  );
+  console.log(res);
+  return res;
+};
+
+const browseToAsteroids = async () => {
+  const res = await axios.get(
+    `https://api.nasa.gov/neo/rest/v1/neo/browse?api_key=DEMO_KEY`,
+  );
+
+  return res;
+};
+
+const StartPage = ({setInfo}) => {
+  const [value, setValue] = useState('');
+  const [pendingObj, setpendingObj] = useState({
+    pending: false,
+    error: false,
+    succes: false,
+  });
+
+  const onInputHandler = (text) => {
+    setValue(text);
+    setpendingObj({...pendingObj, error: false});
+  };
+
+  const onClickhandler = async () => {
+    setpendingObj({...pendingObj, pending: true});
+    try {
+      const info = await getAsteroidIdInfo(value);
+      setpendingObj({...pendingObj, succes: true, pending: false});
+      setInfo({...info.data});
+      Actions.infoPage();
+    } catch (err) {
+      setpendingObj({...pendingObj, error: true, pending: false});
+    }
+  };
+
+  const onRandomHandler = async () => {
+    setpendingObj({...pendingObj, pending: true});
+    try {
+      const res = await browseToAsteroids();
+      const asteroids = res.data.near_earth_objects;
+      const randomAsteroidId =
+        asteroids[Math.round(Math.random() * asteroids.length)].id;
+      const info = await getAsteroidIdInfo(randomAsteroidId);
+      setpendingObj({...pendingObj, succes: true, pending: false});
+      setInfo({...info.data});
+      Actions.infoPage();
+    } catch (err) {
+      setpendingObj({...pendingObj, error: true, pending: false});
+    }
+  };
   return (
-    <>
-      <StatusBar barStyle="dark-content" />
-      <SafeAreaView>
-        <ScrollView
-          contentInsetAdjustmentBehavior="automatic"
-          style={styles.scrollView}>
-          <Header />
-          {global.HermesInternal == null ? null : (
-            <View style={styles.engine}>
-              <Text style={styles.footer}>Engine: Hermes</Text>
-            </View>
+    <SafeAreaView style={styles.container}>
+      <Text
+        style={[styles.error, {display: pendingObj.error ? 'flex' : 'none'}]}>
+        Asteroid not found
+      </Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Enter Asteroid ID"
+        value={value}
+        onChangeText={onInputHandler}
+        keyboardType="numeric"
+      />
+      <View style={styles.btnGroup}>
+        <Button
+          title="Submit"
+          disabled={!value}
+          onPress={onClickhandler}
+          loading={!!value && pendingObj.pending}
+        />
+        <Button title="Random Asteroid" onPress={onRandomHandler} />
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const InfoPage = ({asteroidInfo}) => {
+  console.log(asteroidInfo);
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.infoLine}>
+        <Text style={styles.infoLabel}>name</Text>
+        <Text style={styles.infoText}>{asteroidInfo.name}</Text>
+      </View>
+      <View style={styles.infoLine}>
+        <Text style={styles.infoLabel}>nasa_jpl_url</Text>
+        <Text style={styles.infoText}>{asteroidInfo.nasa_jpl_url}</Text>
+      </View>
+      <View style={styles.infoLine}>
+        <Text style={styles.infoLabel}>is_potentially_hazardous_asteroid</Text>
+        <Text style={styles.infoText}>
+          {asteroidInfo.is_potentially_hazardous_asteroid.toString()}
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const App = () => {
+  const [asteroidInfo, setInfo] = useState({});
+  return (
+    <Router>
+      <Stack key="root">
+        <Scene
+          key="startPage"
+          component={(props) => <StartPage {...props} setInfo={setInfo} />}
+          initial
+          title="Home"
+        />
+        <Scene
+          key="infoPage"
+          component={(props) => (
+            <InfoPage {...props} asteroidInfo={asteroidInfo} />
           )}
-          <View style={styles.body}>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Step One</Text>
-              <Text style={styles.sectionDescription}>
-                Edit <Text style={styles.highlight}>App.js</Text> to change this
-                screen and then come back to see your edits.
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>See Your Changes</Text>
-              <Text style={styles.sectionDescription}>
-                <ReloadInstructions />
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Debug</Text>
-              <Text style={styles.sectionDescription}>
-                <DebugInstructions />
-              </Text>
-            </View>
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionTitle}>Learn More</Text>
-              <Text style={styles.sectionDescription}>
-                Read the docs to discover what to do next:
-              </Text>
-            </View>
-            <LearnMoreLinks />
-          </View>
-        </ScrollView>
-      </SafeAreaView>
-    </>
+          title="Info"
+        />
+      </Stack>
+    </Router>
   );
 };
 
 const styles = StyleSheet.create({
-  scrollView: {
-    backgroundColor: Colors.lighter,
+  container: {
+    backgroundColor: 'black',
+    height: '100%',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    width: '100%',
   },
-  engine: {
-    position: 'absolute',
-    right: 0,
+  btnGroup: {
+    flexDirection: 'row',
+    width: '100%',
+    justifyContent: 'space-evenly',
+    marginTop: 20,
   },
-  body: {
-    backgroundColor: Colors.white,
+  input: {
+    backgroundColor: 'white',
   },
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
+  infoText: {
+    color: 'white',
   },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: Colors.black,
+  error: {
+    color: 'red',
   },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-    color: Colors.dark,
+  infoLine: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
-  highlight: {
-    fontWeight: '700',
-  },
-  footer: {
-    color: Colors.dark,
-    fontSize: 12,
-    fontWeight: '600',
-    padding: 4,
-    paddingRight: 12,
-    textAlign: 'right',
+  infoLabel: {
+    color: 'blue',
   },
 });
 
